@@ -1,32 +1,46 @@
 "use client";
 
 import { MapPin, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { MicroTableCard } from "@/components/tables/MicroTableCard";
-import { ReservationModal } from "@/components/reservation-modal";
+import { ReservationModal } from "@/components/tables/ReservationModal";
 import { MOCK_TABLES } from "@/data/mockTables";
 import type { MicroTable } from "@/types";
 
 export default function Home() {
+  const [tables, setTables] = useState<MicroTable[]>(MOCK_TABLES);
   const [selectedTable, setSelectedTable] = useState<MicroTable | null>(null);
   const [reservationMessage, setReservationMessage] = useState<string | null>(
     null,
   );
 
-  const closeReservation = useCallback(() => setSelectedTable(null), []);
-
-  const handleReservationConfirm = useCallback((tableId: string) => {
-    const table = MOCK_TABLES.find((item) => item.id === tableId);
+  function handleConfirmReservation(
+    tableId: string,
+    attendeeName: string,
+    attendeeGoal: string,
+  ) {
+    const table = tables.find((item) => item.id === tableId);
     if (!table) {
       throw new Error(
         `Cannot confirm reservation for unknown table: ${tableId}`,
       );
     }
 
-    setReservationMessage(
-      `Your seat for ${table.topicTitle} with ${table.hostName} is confirmed.`,
+    setTables((currentTables) =>
+      currentTables.map((item) =>
+        item.id === tableId
+          ? {
+              ...item,
+              reservedSeats: Math.min(item.reservedSeats + 1, item.maxSeats),
+            }
+          : item,
+      ),
     );
-  }, []);
+    setReservationMessage(
+      `Thanks, ${attendeeName}. Your seat for ${table.topicTitle} with ${table.hostName} is confirmed. Your discussion goal: ${attendeeGoal}`,
+    );
+    setSelectedTable(null);
+  }
 
   return (
     <main className="min-h-screen bg-warm-cream px-4 py-8 text-espresso sm:px-6 sm:py-12">
@@ -82,7 +96,7 @@ export default function Home() {
           )}
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            {MOCK_TABLES.map((table) => (
+            {tables.map((table) => (
               <MicroTableCard
                 key={table.id}
                 table={table}
@@ -94,8 +108,8 @@ export default function Home() {
       </div>
       <ReservationModal
         table={selectedTable}
-        onClose={closeReservation}
-        onConfirm={handleReservationConfirm}
+        onClose={() => setSelectedTable(null)}
+        onConfirm={handleConfirmReservation}
       />
     </main>
   );
