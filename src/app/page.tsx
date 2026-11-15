@@ -1,18 +1,49 @@
 "use client";
 
-import { MapPin, X } from "lucide-react";
+import { MapPin, Plus, X } from "lucide-react";
 import { useState } from "react";
+import { FilterBar } from "@/components/tables/FilterBar";
+import { HostTableModal } from "@/components/tables/HostTableModal";
 import { MicroTableCard } from "@/components/tables/MicroTableCard";
 import { ReservationModal } from "@/components/tables/ReservationModal";
+import { Button } from "@/components/ui/button";
 import { MOCK_TABLES } from "@/data/mockTables";
 import type { MicroTable } from "@/types";
+
+function matchesCategory(table: MicroTable, category: string) {
+  switch (category) {
+    case "Engineering":
+      return table.category.includes("Engineering");
+    case "Product & Design":
+      return table.category.startsWith("Product");
+    case "Career Switch":
+      return table.category.startsWith("Career");
+    case "System Design":
+      return table.category === "System Design";
+    default:
+      return true;
+  }
+}
 
 export default function Home() {
   const [tables, setTables] = useState<MicroTable[]>(MOCK_TABLES);
   const [selectedTable, setSelectedTable] = useState<MicroTable | null>(null);
+  const [isHostModalOpen, setIsHostModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [reservationMessage, setReservationMessage] = useState<string | null>(
     null,
   );
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredTables = tables.filter((table) => {
+    const matchesSearch =
+      normalizedSearchQuery.length === 0 ||
+      [table.topicTitle, table.venueName, table.hostName].some((value) =>
+        value.toLowerCase().includes(normalizedSearchQuery),
+      );
+
+    return matchesCategory(table, selectedCategory) && matchesSearch;
+  });
 
   function handleConfirmReservation(
     tableId: string,
@@ -42,6 +73,10 @@ export default function Home() {
     setSelectedTable(null);
   }
 
+  function handleCreateTable(newTable: MicroTable) {
+    setTables((currentTables) => [newTable, ...currentTables]);
+  }
+
   return (
     <main className="min-h-screen bg-warm-cream px-4 py-8 text-espresso sm:px-6 sm:py-12">
       <div className="mx-auto max-w-5xl">
@@ -58,9 +93,15 @@ export default function Home() {
               your neighborhood.
             </p>
           </div>
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-espresso/10 bg-sand-surface px-4 py-2 text-sm font-semibold text-espresso">
-            <MapPin aria-hidden="true" className="size-4 text-terracotta" />
-            Hyderabad
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-espresso/10 bg-sand-surface px-4 py-2 text-sm font-semibold text-espresso">
+              <MapPin aria-hidden="true" className="size-4 text-terracotta" />
+              Hyderabad
+            </div>
+            <Button onClick={() => setIsHostModalOpen(true)}>
+              <Plus aria-hidden="true" className="size-4" />
+              Host a Table
+            </Button>
           </div>
         </header>
 
@@ -95,21 +136,55 @@ export default function Home() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            {tables.map((table) => (
-              <MicroTableCard
-                key={table.id}
-                table={table}
-                onSelect={setSelectedTable}
-              />
-            ))}
-          </div>
+          <FilterBar
+            onSearchChange={setSearchQuery}
+            onSelectCategory={setSelectedCategory}
+            searchQuery={searchQuery}
+            selectedCategory={selectedCategory}
+          />
+
+          {filteredTables.length > 0 ? (
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              {filteredTables.map((table) => (
+                <MicroTableCard
+                  key={table.id}
+                  table={table}
+                  onSelect={setSelectedTable}
+                />
+              ))}
+            </div>
+          ) : (
+            <div
+              className="mt-6 flex flex-col items-center gap-3 rounded-2xl bg-sand-surface px-4 py-8 text-center"
+              role="status"
+            >
+              <p className="text-sm text-muted-cocoa">
+                No tables found for those filters. Try a fresh search and find
+                your next great conversation.
+              </p>
+              <button
+                className="rounded-full bg-terracotta px-4 py-2 text-sm font-semibold text-warm-cream transition hover:bg-terracotta/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                onClick={() => {
+                  setSelectedCategory("All");
+                  setSearchQuery("");
+                }}
+                type="button"
+              >
+                Reset Filters
+              </button>
+            </div>
+          )}
         </section>
       </div>
       <ReservationModal
         table={selectedTable}
         onClose={() => setSelectedTable(null)}
         onConfirm={handleConfirmReservation}
+      />
+      <HostTableModal
+        isOpen={isHostModalOpen}
+        onClose={() => setIsHostModalOpen(false)}
+        onCreateTable={handleCreateTable}
       />
     </main>
   );
