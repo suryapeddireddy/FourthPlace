@@ -29,6 +29,8 @@ export interface SeatBooking {
   id: string;
   tableId: string;
   userId: string;
+  attendeeName: string;
+  attendeeGoal: string;
   status: string;
   bookedAt: string;
 }
