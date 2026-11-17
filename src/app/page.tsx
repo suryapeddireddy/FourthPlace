@@ -8,6 +8,7 @@ import { HostTableModal } from "@/components/tables/HostTableModal";
 import { MicroTableCard } from "@/components/tables/MicroTableCard";
 import { ReservationModal } from "@/components/tables/ReservationModal";
 import { Button } from "@/components/ui/button";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { useTableStore } from "@/store/useTableStore";
 import type { MicroTable } from "@/types";
 
@@ -27,7 +28,8 @@ function matchesCategory(table: MicroTable, category: string) {
 }
 
 export default function Home() {
-  const { tables, addTable, reserveSeat, myBookings } = useTableStore();
+  const { tables, addTable, reserveSeat, fetchTables, myBookings } =
+    useTableStore();
   const [mounted, setMounted] = useState(false);
   const [selectedTable, setSelectedTable] = useState<MicroTable | null>(null);
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
@@ -35,9 +37,32 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setMounted(true));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
+    const frame = window.requestAnimationFrame(() => {
+      setMounted(true);
+      void fetchTables();
+    });
+
+    const channel =
+      isSupabaseConfigured && supabase
+        ? supabase
+            .channel("micro_tables_live")
+            .on(
+              "postgres_changes",
+              { event: "*", schema: "public", table: "micro_tables" },
+              () => {
+                void fetchTables();
+              },
+            )
+            .subscribe()
+        : null;
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (channel && supabase) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [fetchTables]);
 
   const displayedBookingCount = mounted ? myBookings.length : 0;
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -68,6 +93,19 @@ export default function Home() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-espresso/10 bg-sand-surface px-3 py-2 text-sm font-medium text-muted-cocoa">
+              {isSupabaseConfigured ? (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="size-2 animate-pulse rounded-full bg-sage-green"
+                  />
+                  Live Sync
+                </>
+              ) : (
+                "Local Demo"
+              )}
+            </div>
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-espresso/10 bg-sand-surface px-4 py-2 text-sm font-semibold text-espresso">
               <MapPin aria-hidden="true" className="size-4 text-terracotta" />
               Hyderabad
