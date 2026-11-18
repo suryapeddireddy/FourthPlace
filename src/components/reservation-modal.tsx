@@ -3,16 +3,22 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { format, parseISO } from "date-fns";
 import {
+  ArrowLeft,
   Calendar,
   CheckCircle2,
   MapPin,
+  QrCode,
   ShieldCheck,
+  Smartphone,
   X,
 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useTableStore } from "@/store/useTableStore";
 import type { MicroTable } from "@/types";
+
+type ReservationStep = "details" | "payment" | "confirmed";
 
 type ReservationModalProps = {
   table: MicroTable | null;
@@ -48,9 +54,15 @@ function ReservationDialog({
   onClose,
   onConfirm,
 }: Omit<ReservationModalProps, "table"> & { table: MicroTable }) {
-  const [attendeeName, setAttendeeName] = useState("");
+  const currentUser = useTableStore((state) => state.currentUser);
+  const [attendeeName, setAttendeeName] = useState(
+    () => currentUser?.name ?? "",
+  );
   const [attendeeGoal, setAttendeeGoal] = useState("");
-  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [step, setStep] = useState<ReservationStep>("details");
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -67,20 +79,55 @@ function ReservationDialog({
   }, [onClose]);
 
   useEffect(() => {
-    if (!isConfirmed) return;
+    if (step !== "confirmed") return;
 
     const closeTimer = window.setTimeout(onClose, 1600);
     return () => window.clearTimeout(closeTimer);
-  }, [isConfirmed, onClose]);
+  }, [step, onClose]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = attendeeName.trim();
     const goal = attendeeGoal.trim();
     if (!name || !goal) return;
 
-    onConfirm(table.id, name, goal);
-    setIsConfirmed(true);
+    setCheckoutError(null);
+    setIsCreatingOrder(true);
+
+    try {
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tableId: table.id,
+          amountInr: table.seatPriceINR,
+          attendeeName: name,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("We couldn't start checkout. Please try again.");
+      }
+
+      setAttendeeName(name);
+      setAttendeeGoal(goal);
+      setStep("payment");
+    } catch (error) {
+      setCheckoutError(
+        error instanceof Error
+          ? error.message
+          : "We couldn't start checkout. Please try again.",
+      );
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  }
+
+  async function handlePayment() {
+    setIsProcessingPayment(true);
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 800));
+    onConfirm(table.id, attendeeName.trim(), attendeeGoal.trim());
+    setStep("confirmed");
   }
 
   return (
@@ -115,7 +162,7 @@ function ReservationDialog({
 
         <div className="p-6 sm:p-8">
           <AnimatePresence mode="wait" initial={false}>
-            {isConfirmed ? (
+            {step === "confirmed" ? (
               <motion.div
                 key="confirmation"
                 className="flex min-h-80 flex-col items-center justify-center py-10 text-center"
@@ -144,7 +191,7 @@ function ReservationDialog({
               </motion.div>
             ) : (
               <motion.div
-                key="reservation-form"
+                key={step}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
@@ -192,77 +239,165 @@ function ReservationDialog({
                   </div>
                 </div>
 
-                <form className="mt-6" onSubmit={handleSubmit}>
-                  <div className="grid gap-4">
-                    <div>
-                      <label
-                        className="mb-1.5 block text-sm font-semibold"
-                        htmlFor="attendee-name"
-                      >
-                        Your Name
-                      </label>
-                      <input
-                        autoComplete="name"
-                        className="w-full rounded-xl border border-espresso/15 bg-white/70 px-3.5 py-3 text-sm text-espresso outline-none transition placeholder:text-muted-cocoa/70 focus:border-terracotta focus:ring-2 focus:ring-terracotta/15"
-                        id="attendee-name"
-                        maxLength={100}
-                        name="attendeeName"
-                        onChange={(event) =>
-                          setAttendeeName(event.target.value)
-                        }
-                        placeholder="How should the host know you?"
-                        required
-                        value={attendeeName}
-                      />
+                {step === "details" ? (
+                  <form className="mt-6" onSubmit={handleSubmit}>
+                    <div className="grid gap-4">
+                      <div>
+                        <label
+                          className="mb-1.5 block text-sm font-semibold"
+                          htmlFor="attendee-name"
+                        >
+                          Your Name
+                        </label>
+                        <input
+                          autoComplete="name"
+                          className="w-full rounded-xl border border-espresso/15 bg-white/70 px-3.5 py-3 text-sm text-espresso outline-none transition placeholder:text-muted-cocoa/70 focus:border-terracotta focus:ring-2 focus:ring-terracotta/15"
+                          id="attendee-name"
+                          maxLength={100}
+                          name="attendeeName"
+                          onChange={(event) =>
+                            setAttendeeName(event.target.value)
+                          }
+                          placeholder="How should the host know you?"
+                          required
+                          value={attendeeName}
+                        />
+                      </div>
+                      <div>
+                        <label
+                          className="mb-1.5 block text-sm font-semibold"
+                          htmlFor="attendee-goal"
+                        >
+                          What do you want to discuss? (1-line goal)
+                        </label>
+                        <input
+                          className="w-full rounded-xl border border-espresso/15 bg-white/70 px-3.5 py-3 text-sm text-espresso outline-none transition placeholder:text-muted-cocoa/70 focus:border-terracotta focus:ring-2 focus:ring-terracotta/15"
+                          id="attendee-goal"
+                          maxLength={140}
+                          name="attendeeGoal"
+                          onChange={(event) =>
+                            setAttendeeGoal(event.target.value)
+                          }
+                          placeholder="e.g. Finding my next step in product design"
+                          required
+                          type="text"
+                          value={attendeeGoal}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label
-                        className="mb-1.5 block text-sm font-semibold"
-                        htmlFor="attendee-goal"
-                      >
-                        What do you want to discuss? (1-line goal)
-                      </label>
-                      <input
-                        className="w-full rounded-xl border border-espresso/15 bg-white/70 px-3.5 py-3 text-sm text-espresso outline-none transition placeholder:text-muted-cocoa/70 focus:border-terracotta focus:ring-2 focus:ring-terracotta/15"
-                        id="attendee-goal"
-                        maxLength={140}
-                        name="attendeeGoal"
-                        onChange={(event) =>
-                          setAttendeeGoal(event.target.value)
-                        }
-                        placeholder="e.g. Finding my next step in product design"
-                        required
-                        type="text"
-                        value={attendeeGoal}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="mt-6 border-t border-espresso/10 pt-4">
-                    <div className="flex items-center justify-between text-sm text-muted-cocoa">
-                      <span>Seat price</span>
-                      <span>
-                        ₹{table.seatPriceINR.toLocaleString("en-IN")}
-                      </span>
+                    {checkoutError && (
+                      <p className="mt-3 text-sm text-terracotta" role="alert">
+                        {checkoutError}
+                      </p>
+                    )}
+
+                    <div className="mt-6 border-t border-espresso/10 pt-4">
+                      <div className="flex items-center justify-between text-sm text-muted-cocoa">
+                        <span>Seat price</span>
+                        <span>
+                          ₹{table.seatPriceINR.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-base font-bold">
+                        <span>Total</span>
+                        <span>
+                          ₹{table.seatPriceINR.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <Button
+                        className="mt-5 w-full py-3"
+                        disabled={isCreatingOrder}
+                        type="submit"
+                      >
+                        {isCreatingOrder
+                          ? "Preparing checkout..."
+                          : "Continue to payment"}
+                      </Button>
+                      <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-cocoa">
+                        <ShieldCheck
+                          aria-hidden="true"
+                          className="size-3.5 text-sage-green"
+                        />
+                        Your details are shared only with the host.
+                      </p>
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                      <span>Total</span>
-                      <span>
+                  </form>
+                ) : (
+                  <section
+                    aria-labelledby="payment-step-title"
+                    className="mt-6 rounded-2xl bg-sand-surface p-5 text-espresso sm:p-6"
+                  >
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-muted-cocoa">
+                        Amount to pay
+                      </p>
+                      <h3
+                        className="mt-1 text-3xl font-bold tracking-tight"
+                        id="payment-step-title"
+                      >
                         ₹{table.seatPriceINR.toLocaleString("en-IN")}
-                      </span>
+                      </h3>
                     </div>
-                    <Button className="mt-5 w-full py-3" type="submit">
-                      Confirm &amp; Claim Seat
-                    </Button>
-                    <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-cocoa">
-                      <ShieldCheck
-                        aria-hidden="true"
-                        className="size-3.5 text-sage-green"
-                      />
-                      Your details are shared only with the host.
-                    </p>
-                  </div>
-                </form>
+
+                    <div
+                      aria-label="Stylized UPI QR code placeholder"
+                      className="mx-auto mt-5 flex size-48 items-center justify-center rounded-2xl border border-espresso/10 bg-white p-3 shadow-sm"
+                      role="img"
+                    >
+                      <div className="flex size-full items-center justify-center rounded-xl border-4 border-espresso/80 bg-sand-surface">
+                        <QrCode
+                          aria-hidden="true"
+                          className="size-32 text-espresso"
+                          strokeWidth={1.5}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-cocoa">
+                      <Smartphone aria-hidden="true" className="size-4" />
+                      Scan with your preferred UPI app
+                    </div>
+                    <div
+                      aria-label="Popular UPI apps"
+                      className="mt-3 flex justify-center gap-2"
+                    >
+                      {["GPay", "PhonePe", "Paytm"].map((app) => (
+                        <span
+                          className="rounded-full border border-espresso/10 bg-white px-3 py-1 text-xs font-semibold text-espresso"
+                          key={app}
+                        >
+                          {app}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 flex gap-3">
+                      <Button
+                        className="bg-white text-espresso hover:bg-white/80"
+                        disabled={isProcessingPayment}
+                        onClick={() => setStep("details")}
+                      >
+                        <ArrowLeft aria-hidden="true" className="size-4" />
+                        Back
+                      </Button>
+                      <Button
+                        className="flex-1 py-3"
+                        disabled={isProcessingPayment}
+                        onClick={handlePayment}
+                      >
+                        {isProcessingPayment
+                          ? "Processing payment..."
+                          : "Complete Payment & Claim Seat"}
+                      </Button>
+                    </div>
+                    {isProcessingPayment && (
+                      <p className="sr-only" role="status">
+                        Processing payment
+                      </p>
+                    )}
+                  </section>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
