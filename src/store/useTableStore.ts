@@ -28,6 +28,8 @@ interface TableState {
     attendeeName: string,
     attendeeGoal: string,
   ) => Promise<void>;
+  cancelBooking: (bookingId: string) => Promise<void>;
+  deleteHostedTable: (tableId: string) => Promise<void>;
   resetDemoData: () => void;
 }
 
@@ -233,6 +235,95 @@ export const useTableStore = create<TableState>()(
             myBookings: [...state.myBookings, booking],
           };
         });
+      },
+      cancelBooking: async (bookingId) => {
+        const booking = get().myBookings.find((item) => item.id === bookingId);
+        if (!booking) return;
+
+        if (isSupabaseConfigured && supabase) {
+          try {
+            const { error } = await supabase
+              .from("seat_bookings")
+              .delete()
+              .eq("id", bookingId);
+
+            if (error) {
+              console.error("Failed to cancel seat booking in Supabase:", error);
+              return;
+            }
+          } catch (error) {
+            console.error("Failed to cancel seat booking in Supabase:", error);
+            return;
+          }
+
+          try {
+            const { data, error } = await supabase
+              .from("micro_tables")
+              .select("reserved_seats")
+              .eq("id", booking.tableId)
+              .maybeSingle();
+
+            if (error) {
+              console.error(
+                "Failed to fetch reserved seats from Supabase:",
+                error,
+              );
+            } else if (data) {
+              const { error: updateError } = await supabase
+                .from("micro_tables")
+                .update({
+                  reserved_seats: Math.max(0, (data.reserved_seats ?? 0) - 1),
+                })
+                .eq("id", booking.tableId);
+
+              if (updateError) {
+                console.error(
+                  "Failed to decrement reserved seats in Supabase:",
+                  updateError,
+                );
+              }
+            }
+          } catch (error) {
+            console.error(
+              "Failed to decrement reserved seats in Supabase:",
+              error,
+            );
+          }
+        }
+
+        set((state) => ({
+          myBookings: state.myBookings.filter((item) => item.id !== bookingId),
+          tables: state.tables.map((table) =>
+            table.id === booking.tableId
+              ? { ...table, reservedSeats: Math.max(0, table.reservedSeats - 1) }
+              : table,
+          ),
+        }));
+      },
+      deleteHostedTable: async (tableId) => {
+        if (isSupabaseConfigured && supabase) {
+          try {
+            const { error } = await supabase
+              .from("micro_tables")
+              .delete()
+              .eq("id", tableId);
+
+            if (error) {
+              console.error("Failed to delete micro table from Supabase:", error);
+              return;
+            }
+          } catch (error) {
+            console.error("Failed to delete micro table from Supabase:", error);
+            return;
+          }
+        }
+
+        set((state) => ({
+          tables: state.tables.filter((table) => table.id !== tableId),
+          myBookings: state.myBookings.filter(
+            (booking) => booking.tableId !== tableId,
+          ),
+        }));
       },
       resetDemoData: () => set({ tables: MOCK_TABLES, myBookings: [] }),
     }),

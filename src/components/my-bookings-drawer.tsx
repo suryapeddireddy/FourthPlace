@@ -2,10 +2,20 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { format, isValid, parseISO } from "date-fns";
-import { Calendar, CheckCircle2, MapPin, Ticket, X } from "lucide-react";
-import { useEffect } from "react";
+import {
+  Calendar,
+  CheckCircle2,
+  Coffee,
+  MapPin,
+  Ticket,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useTableStore } from "@/store/useTableStore";
 import type { MicroTable, SeatBooking } from "@/types";
 
 type MyBookingsDrawerProps = {
@@ -21,6 +31,16 @@ export function MyBookingsDrawer({
   bookings,
   tables,
 }: MyBookingsDrawerProps) {
+  const { cancelBooking, deleteHostedTable, currentUser } = useTableStore();
+  const [activeTab, setActiveTab] = useState<"bookings" | "hosted">("bookings");
+  const hostedTables = currentUser
+    ? tables.filter(
+        (table) =>
+          table.hostId === currentUser.id ||
+          table.hostName === currentUser.name,
+      )
+    : [];
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -66,7 +86,7 @@ export function MyBookingsDrawer({
                 id="my-bookings-title"
                 className="text-xl font-bold tracking-tight sm:text-2xl"
               >
-                My Reserved Seats
+                My Reservations
               </h2>
               <Button
                 aria-label="Close reserved seats"
@@ -78,101 +98,229 @@ export function MyBookingsDrawer({
             </header>
 
             <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-7">
-              {bookings.length === 0 ? (
-                <div
-                  className="flex min-h-[60vh] flex-col items-center justify-center text-center"
-                  role="status"
+              <div
+                className="mb-6 grid grid-cols-2 rounded-2xl border border-espresso/10 bg-sand-surface p-1"
+                role="tablist"
+                aria-label="Your reservations"
+              >
+                <button
+                  id="bookings-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "bookings"}
+                  aria-controls="bookings-panel"
+                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                    activeTab === "bookings"
+                      ? "bg-warm-cream text-espresso shadow-sm"
+                      : "text-muted-cocoa hover:text-espresso"
+                  }`}
+                  onClick={() => setActiveTab("bookings")}
                 >
-                  <div className="flex size-16 items-center justify-center rounded-full bg-sand-surface text-terracotta">
-                    <Ticket aria-hidden="true" className="size-8" />
-                  </div>
-                  <h3 className="mt-5 text-xl font-bold tracking-tight">
-                    Your next good conversation is nearby
-                  </h3>
-                  <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-cocoa">
-                    Claim your first neighborhood mentorship seat and meet
-                    someone new over coffee.
-                  </p>
+                  Booked Seats
+                </button>
+                <button
+                  id="hosted-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "hosted"}
+                  aria-controls="hosted-panel"
+                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                    activeTab === "hosted"
+                      ? "bg-warm-cream text-espresso shadow-sm"
+                      : "text-muted-cocoa hover:text-espresso"
+                  }`}
+                  onClick={() => setActiveTab("hosted")}
+                >
+                  Tables I Host
+                </button>
+              </div>
+
+              {activeTab === "bookings" ? (
+                <div
+                  id="bookings-panel"
+                  role="tabpanel"
+                  aria-labelledby="bookings-tab"
+                >
+                  {bookings.length === 0 ? (
+                    <div
+                      className="flex min-h-[50vh] flex-col items-center justify-center text-center"
+                      role="status"
+                    >
+                      <div className="flex size-16 items-center justify-center rounded-full bg-sand-surface text-terracotta">
+                        <Ticket aria-hidden="true" className="size-8" />
+                      </div>
+                      <h3 className="mt-5 text-xl font-bold tracking-tight">
+                        Your next good conversation is nearby
+                      </h3>
+                      <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-cocoa">
+                        Claim your first neighborhood mentorship seat and meet
+                        someone new over coffee.
+                      </p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-4">
+                      {bookings.map((booking) => {
+                        const table = tables.find(
+                          (item) => item.id === booking.tableId,
+                        );
+
+                        return (
+                          <li key={booking.id}>
+                            <article
+                              aria-labelledby={`booking-${booking.id}`}
+                              className="rounded-3xl border border-espresso/10 bg-sand-surface p-5 sm:p-6"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                  <p className="flex items-center gap-2 text-xs font-semibold tracking-wide text-terracotta uppercase">
+                                    <Ticket
+                                      aria-hidden="true"
+                                      className="size-4 shrink-0"
+                                    />
+                                    Neighborhood seat
+                                  </p>
+                                  <h3
+                                    id={`booking-${booking.id}`}
+                                    className="mt-2 text-lg font-bold leading-snug"
+                                  >
+                                    {table?.topicTitle ??
+                                      "Table details unavailable"}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-muted-cocoa">
+                                    Hosted by{" "}
+                                    <span className="font-semibold text-espresso">
+                                      {table?.hostName ??
+                                        "Host details unavailable"}
+                                    </span>
+                                  </p>
+                                </div>
+                                <Badge
+                                  className="shrink-0 bg-sage-green/10 text-sage-green"
+                                  variant="neutral"
+                                >
+                                  <CheckCircle2
+                                    aria-hidden="true"
+                                    className="size-3.5 shrink-0"
+                                  />
+                                  Confirmed
+                                </Badge>
+                              </div>
+
+                              <div className="mt-5 grid gap-3 border-t border-dashed border-espresso/15 pt-4 text-sm text-muted-cocoa">
+                                <div className="flex items-start gap-2.5">
+                                  <MapPin
+                                    aria-hidden="true"
+                                    className="mt-0.5 size-4 shrink-0 text-terracotta"
+                                  />
+                                  <span>
+                                    {table?.venueName ??
+                                      "Cafe details unavailable"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2.5">
+                                  <Calendar
+                                    aria-hidden="true"
+                                    className="size-4 shrink-0 text-terracotta"
+                                  />
+                                  {table && isValid(parseISO(table.scheduledAt)) ? (
+                                    <time dateTime={table.scheduledAt}>
+                                      {format(
+                                        parseISO(table.scheduledAt),
+                                        "EEEE, MMM d · h:mm a",
+                                      )}
+                                    </time>
+                                  ) : (
+                                    <span>Schedule unavailable</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-5 flex justify-end">
+                                <Button
+                                  className="border border-espresso/10 bg-warm-cream px-3 py-2 text-xs text-muted-cocoa hover:border-terracotta/30 hover:bg-terracotta/5 hover:text-terracotta"
+                                  onClick={() => void cancelBooking(booking.id)}
+                                >
+                                  <Trash2
+                                    aria-hidden="true"
+                                    className="size-3.5"
+                                  />
+                                  Cancel Seat
+                                </Button>
+                              </div>
+                            </article>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               ) : (
-                <ul className="space-y-4">
-                  {bookings.map((booking) => {
-                    const table = tables.find(
-                      (item) => item.id === booking.tableId,
-                    );
-
-                    return (
-                      <li key={booking.id}>
-                        <article
-                          aria-labelledby={`booking-${booking.id}`}
-                          className="rounded-3xl border border-espresso/10 bg-sand-surface p-5 sm:p-6"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <p className="flex items-center gap-2 text-xs font-semibold tracking-wide text-terracotta uppercase">
-                                <Ticket
-                                  aria-hidden="true"
-                                  className="size-4 shrink-0"
-                                />
-                                Neighborhood seat
-                              </p>
-                              <h3
-                                id={`booking-${booking.id}`}
-                                className="mt-2 text-lg font-bold leading-snug"
-                              >
-                                {table?.topicTitle ?? "Table details unavailable"}
-                              </h3>
-                              <p className="mt-1 text-sm text-muted-cocoa">
-                                Hosted by{" "}
-                                <span className="font-semibold text-espresso">
-                                  {table?.hostName ?? "Host details unavailable"}
-                                </span>
-                              </p>
-                            </div>
-                            <Badge
-                              className="shrink-0 bg-sage-green/10 text-sage-green"
-                              variant="neutral"
+                <div
+                  id="hosted-panel"
+                  role="tabpanel"
+                  aria-labelledby="hosted-tab"
+                >
+                  {hostedTables.length === 0 ? (
+                    <div
+                      className="flex min-h-[50vh] flex-col items-center justify-center text-center"
+                      role="status"
+                    >
+                      <div className="flex size-16 items-center justify-center rounded-full bg-sand-surface text-terracotta">
+                        <Coffee aria-hidden="true" className="size-8" />
+                      </div>
+                      <h3 className="mt-5 text-xl font-bold tracking-tight">
+                        No hosted tables yet
+                      </h3>
+                      <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-cocoa">
+                        Tables you host will show up here.
+                      </p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-4">
+                      {hostedTables.map((table) => (
+                        <li key={table.id}>
+                          <article
+                            aria-labelledby={`hosted-table-${table.id}`}
+                            className="rounded-3xl border border-espresso/10 bg-sand-surface p-5 sm:p-6"
+                          >
+                            <p className="flex items-center gap-2 text-xs font-semibold tracking-wide text-terracotta uppercase">
+                              <Coffee
+                                aria-hidden="true"
+                                className="size-4 shrink-0"
+                              />
+                              Hosted table
+                            </p>
+                            <h3
+                              id={`hosted-table-${table.id}`}
+                              className="mt-2 text-lg font-bold leading-snug"
                             >
-                              <CheckCircle2
-                                aria-hidden="true"
-                                className="size-3.5 shrink-0"
-                              />
-                              Confirmed
-                            </Badge>
-                          </div>
-
-                          <div className="mt-5 grid gap-3 border-t border-dashed border-espresso/15 pt-4 text-sm text-muted-cocoa">
-                            <div className="flex items-start gap-2.5">
-                              <MapPin
-                                aria-hidden="true"
-                                className="mt-0.5 size-4 shrink-0 text-terracotta"
-                              />
-                              <span>
-                                {table?.venueName ?? "Cafe details unavailable"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2.5">
-                              <Calendar
+                              {table.topicTitle}
+                            </h3>
+                            <p className="mt-2 flex items-center gap-2 text-sm text-muted-cocoa">
+                              <Users
                                 aria-hidden="true"
                                 className="size-4 shrink-0 text-terracotta"
                               />
-                              {table && isValid(parseISO(table.scheduledAt)) ? (
-                                <time dateTime={table.scheduledAt}>
-                                  {format(
-                                    parseISO(table.scheduledAt),
-                                    "EEEE, MMM d · h:mm a",
-                                  )}
-                                </time>
-                              ) : (
-                                <span>Schedule unavailable</span>
-                              )}
+                              {table.reservedSeats}/{table.maxSeats} seats
+                              filled
+                            </p>
+                            <div className="mt-5 flex justify-end border-t border-dashed border-espresso/15 pt-4">
+                              <Button
+                                className="border border-espresso/10 bg-warm-cream px-3 py-2 text-xs text-muted-cocoa hover:border-terracotta/30 hover:bg-terracotta/5 hover:text-terracotta"
+                                onClick={() => void deleteHostedTable(table.id)}
+                              >
+                                <Trash2
+                                  aria-hidden="true"
+                                  className="size-3.5"
+                                />
+                                Cancel Table
+                              </Button>
                             </div>
-                          </div>
-                        </article>
-                      </li>
-                    );
-                  })}
-                </ul>
+                          </article>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           </motion.aside>

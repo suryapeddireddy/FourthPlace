@@ -7,6 +7,7 @@ import { FilterBar } from "@/components/tables/FilterBar";
 import { HostTableModal } from "@/components/tables/HostTableModal";
 import { MicroTableCard } from "@/components/tables/MicroTableCard";
 import { ReservationModal } from "@/components/tables/ReservationModal";
+import { TableDetailModal } from "@/components/tables/TableDetailModal";
 import { Button } from "@/components/ui/button";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { useTableStore } from "@/store/useTableStore";
@@ -32,6 +33,9 @@ export default function Home() {
     useTableStore();
   const [mounted, setMounted] = useState(false);
   const [selectedTable, setSelectedTable] = useState<MicroTable | null>(null);
+  const [inspectingTable, setInspectingTable] = useState<MicroTable | null>(
+    null,
+  );
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
   const [isBookingsDrawerOpen, setIsBookingsDrawerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -158,6 +162,7 @@ export default function Home() {
                     key={table.id}
                     table={table}
                     onSelect={setSelectedTable}
+                    onViewDetails={setInspectingTable}
                   />
                 ))}
               </div>
@@ -188,6 +193,15 @@ export default function Home() {
         table={selectedTable}
         onClose={() => setSelectedTable(null)}
         onConfirm={reserveSeat}
+      />
+      <TableDetailModal
+        table={inspectingTable}
+        bookings={myBookings}
+        onClose={() => setInspectingTable(null)}
+        onClaimSeat={(table) => {
+          setInspectingTable(null);
+          setSelectedTable(table);
+        }}
       />
       <HostTableModal
         isOpen={isHostModalOpen}

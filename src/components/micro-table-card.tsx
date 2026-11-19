@@ -9,15 +9,23 @@ import type { MicroTable } from "@/types";
 type MicroTableCardProps = {
   table: MicroTable;
   onSelect: (table: MicroTable) => void;
+  onViewDetails?: (table: MicroTable) => void;
 };
 
-export function MicroTableCard({ table, onSelect }: MicroTableCardProps) {
+export function MicroTableCard({
+  table,
+  onSelect,
+  onViewDetails,
+}: MicroTableCardProps) {
   const seatCount = Math.max(0, table.maxSeats);
   const reservedSeats = Math.min(Math.max(0, table.reservedSeats), seatCount);
   const seatsLeft = seatCount - reservedSeats;
 
   return (
-    <article className="group rounded-2xl border border-espresso/10 bg-sand-surface p-5 text-espresso shadow-sm transition duration-200 hover:-translate-y-1 hover:bg-warm-cream hover:shadow-md sm:p-6">
+    <article
+      className="group cursor-pointer rounded-2xl border border-espresso/10 bg-sand-surface p-5 text-espresso shadow-sm transition duration-200 hover:-translate-y-1 hover:bg-warm-cream hover:shadow-md sm:p-6"
+      onClick={() => onViewDetails?.(table)}
+    >
       <div className="flex items-start justify-between gap-4">
         <Badge variant="neutral">{table.category}</Badge>
         <p className="shrink-0 text-lg font-bold text-espresso">
@@ -84,14 +92,29 @@ export function MicroTableCard({ table, onSelect }: MicroTableCardProps) {
         ))}
       </div>
 
-      <Button
-        className="mt-5 w-full"
-        disabled={seatsLeft === 0}
-        onClick={() => onSelect(table)}
-      >
-        {seatsLeft === 0 ? "Fully booked" : "Claim Seat"}
-        <ArrowUpRight aria-hidden="true" className="size-4" />
-      </Button>
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <button
+          className="text-sm font-semibold text-muted-cocoa transition-colors hover:text-espresso focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+          onClick={(event) => {
+            event.stopPropagation();
+            onViewDetails?.(table);
+          }}
+          type="button"
+        >
+          View Agenda
+        </button>
+        <Button
+          className="ml-auto"
+          disabled={seatsLeft === 0}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(table);
+          }}
+        >
+          {seatsLeft === 0 ? "Fully booked" : "Claim Seat"}
+          <ArrowUpRight aria-hidden="true" className="size-4" />
+        </Button>
+      </div>
     </article>
   );
 }

@@ -13,9 +13,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FourthPlace | Career micro-mentorship, close by",
+  title: "FourthPlace — Curated 4-Seat Micro-Mentorship at Hyderabad Cafes",
   description:
-    "Join a cozy four-person career micro-mentorship around a cafe table in your neighborhood.",
+    "Skip cold DMs. Join intimate 4-person career, system design, and product mentorship tables hosted by verified builders across Jubilee Hills, Madhapur, and Gachibowli.",
+  openGraph: {
+    title: "FourthPlace — Curated 4-Seat Micro-Mentorship at Hyderabad Cafes",
+    description:
+      "Skip cold DMs. Join intimate 4-person career, system design, and product mentorship tables hosted by verified builders across Jubilee Hills, Madhapur, and Gachibowli.",
+    siteName: "FourthPlace",
+    locale: "en_IN",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -24,7 +35,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-warm-cream text-espresso">
+        {children}
+      </body>
     </html>
   );
 }
